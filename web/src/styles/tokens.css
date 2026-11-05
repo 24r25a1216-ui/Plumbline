@@ -1,0 +1,132 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   PLUMBLINE — design tokens
+   Palette "Graphite & Signal": neutral dark-gray and white surfaces with
+   smooth, bright Google-style accents (blue, green, yellow, orange, red).
+   The token name --lichen is kept for the primary accent so every component
+   inherits the new colour without changes.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-0: #0f0f10;
+  --bg-1: #151516;
+  --bg-2: #1c1c1e;
+  --bg-3: #242426;
+  --bg-4: #2e2e31;
+  --bg-sunken: #121213;
+
+  --line-1: #2a2a2d;
+  --line-2: #38383c;
+  --line-3: #4d4d52;
+  --line-4: #66666c;
+
+  --ink-1: #f1f3f4;
+  --ink-2: #c7cacd;
+  --ink-3: #9aa0a6;
+  --ink-4: #6f7479;
+
+  /* Primary accent — bright sky blue */
+  --lichen: #8ab4f8;
+  --lichen-2: #aecbfa;
+  --lichen-ink: #0b1b36;
+  --lichen-wash: rgb(138 180 248 / 0.12);
+  --lichen-line: rgb(138 180 248 / 0.4);
+
+  --verdigris: #81c995; /* green  */
+  --ochre: #fdd663; /* yellow */
+  --clay: #fcad70; /* orange */
+  --oxide: #f28b82; /* red    */
+  --sand: #78d9ec; /* cyan   */
+  --moss: #9aa0a6; /* gray   */
+
+  --sev-1: #9aa0a6;
+  --sev-2: #81c995;
+  --sev-3: #fdd663;
+  --sev-4: #fcad70;
+  --sev-5: #f28b82;
+
+  --dom-education: #8ab4f8;
+  --dom-healthcare: #81c995;
+  --dom-public_service: #fdd663;
+
+  --grain: 0;
+  --grid-dot: rgb(255 255 255 / 0.05);
+  --glow: rgb(138 180 248 / 0.07);
+
+  --shadow-1: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 18px 44px -20px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 30px 80px -30px rgb(0 0 0 / 0.8), 0 0 0 1px var(--line-2);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-0: #eceef0;
+  --bg-1: #f6f7f8;
+  --bg-2: #ffffff;
+  --bg-3: #ffffff;
+  --bg-4: #eef0f2;
+  --bg-sunken: #f1f3f4;
+
+  --line-1: #e3e5e8;
+  --line-2: #d3d6da;
+  --line-3: #b4b8bd;
+  --line-4: #8f949a;
+
+  --ink-1: #1f2124;
+  --ink-2: #44474b;
+  --ink-3: #6b6f74;
+  --ink-4: #9a9ea3;
+
+  --lichen: #1a73e8;
+  --lichen-2: #1765cc;
+  --lichen-ink: #ffffff;
+  --lichen-wash: rgb(26 115 232 / 0.09);
+  --lichen-line: rgb(26 115 232 / 0.4);
+
+  --verdigris: #188038;
+  --ochre: #b06000;
+  --clay: #c5560f;
+  --oxide: #d93025;
+  --sand: #0b7f93;
+  --moss: #6b6f74;
+
+  --sev-1: #80868b;
+  --sev-2: #188038;
+  --sev-3: #e37400;
+  --sev-4: #c5560f;
+  --sev-5: #d93025;
+
+  --dom-education: #1a73e8;
+  --dom-healthcare: #188038;
+  --dom-public_service: #e37400;
+
+  --grain: 0;
+  --grid-dot: rgb(31 33 36 / 0.07);
+  --glow: rgb(26 115 232 / 0.06);
+
+  --shadow-1: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 1px 2px rgb(32 33 36 / 0.1);
+  --shadow-2: 0 1px 0 rgb(255 255 255 / 0.8) inset, 0 16px 36px -22px rgb(32 33 36 / 0.3), 0 2px 6px rgb(32 33 36 / 0.07);
+  --shadow-pop: 0 30px 70px -30px rgb(32 33 36 / 0.35), 0 0 0 1px var(--line-2);
+}
+
+:root {
+  --font-ui: 'Figtree', 'Noto Sans Telugu', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --font-display: 'Figtree', 'Noto Sans Telugu', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --font-mono: 'Martian Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --rail-w: 264px;
+  --top-h: 60px;
+}

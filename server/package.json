@@ -1,0 +1,35 @@
+{
+  "name": "@plumbline/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "start": "cross-env NODE_ENV=production tsx src/index.ts",
+    "seed": "tsx src/seed.ts",
+    "reset": "tsx src/seed.ts --reset",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/nodemailer": "^8.0.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.3.1",
+    "tsx": "^4.19.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.2"
+  }
+}

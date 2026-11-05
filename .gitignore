@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+uploads/
+.env
+*.log
+
+CREDENTIALS.txt
+*.db
+*.sqlite
+*.sqlite3
