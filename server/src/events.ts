@@ -4,6 +4,7 @@
  */
 import type { Response } from 'express';
 import { all, get, run } from './db.js';
+import { sendCitizenNotificationEmail } from './email.js';
 
 interface Client { res: Response; userId: number; role: string; departmentId: number | null }
 const clients = new Set<Client>();
@@ -59,6 +60,11 @@ export function notify(userId: number, n: { complaintId?: number | null; kind?: 
   );
   const row = get('SELECT * FROM notifications WHERE id = ?', lastId);
   publish((c) => c.userId === userId, 'notification', row);
+  // Keep the in-app notification immediate; send email asynchronously so a mail outage
+  // never blocks complaint processing. Only citizen accounts receive these emails.
+  void sendCitizenNotificationEmail(userId, n).catch((error) => {
+    console.error('Citizen email delivery error:', error instanceof Error ? error.message : String(error));
+  });
 }
 
 export function notifyRole(role: 'admin' | 'officer', n: Parameters<typeof notify>[1], departmentId?: number | null) {

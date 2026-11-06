@@ -6,7 +6,6 @@
 import { get, run, nowIso } from '../db.js';
 import { aiActive, getSettings, slaHoursFor } from '../settings.js';
 import { publishComplaint, notify, notifyRole } from '../events.js';
-import { sendEmail } from '../notifications.js';
 import { addEvent, changeStatus, escalate } from '../services.js';
 import { detectLanguage, glossaryTranslate, LANG_LABEL, type LanguageResult, type Lang } from './language.js';
 import { preprocess, type Preprocessed } from './preprocess.js';
@@ -311,102 +310,83 @@ ${raw}`;
       similarity.duplicates[0]?.similarity ?? null, nowIso(), id,
     );
     addEvent(id, { type: 'ai', message: `Analysis complete in ${(analysis.totalMs / 1000).toFixed(1)}s (${analysis.engine} engine). Suggested: ${categoryLabel(classification.category)} → ${routing.departmentCode}, ${priority.priority}.`, visibility: 'internal', meta: { engine: analysis.engine } });
-        // Automatically select an active officer from the responsible department.
-    const officer = routing.departmentId
-      ? get<{ id: number; name: string; email: string }>(
-          `SELECT id, name, email
-           FROM users
-           WHERE role = 'officer'
-             AND status = 'active'
-             AND department_id = ?
-           ORDER BY id ASC
-           LIMIT 1`,
-          routing.departmentId,
-        )
-      : undefined;
+    // Automatically assign an active officer from the responsible department.
+const officer = routing.departmentId
+  ? get<{ id: number; name: string; email: string }>(
+      `SELECT id, name, email
+       FROM users
+       WHERE role = 'officer'
+         AND status = 'active'
+         AND department_id = ?
+       ORDER BY id ASC
+       LIMIT 1`,
+      routing.departmentId,
+    )
+  : undefined;
 
-    if (officer) {
-      const now = nowIso();
-      const due = new Date(
-        Date.now() + slaHoursFor(priority.priority) * 3_600_000,
-      ).toISOString();
+if (officer) {
+  const now = nowIso();
+  const due = new Date(
+    Date.now() + slaHoursFor(priority.priority) * 3_600_000,
+  ).toISOString();
 
-      // Save verification and officer assignment.
-      run(
-        `UPDATE complaints
-         SET assigned_to = ?,
-             verified_at = ?,
-             assigned_at = ?,
-             sla_due_at = ?
-         WHERE id = ?`,
-        officer.id,
-        now,
-        now,
-        due,
-        id,
-      );
+  run(
+    `UPDATE complaints
+     SET assigned_to = ?,
+         verified_at = ?,
+         assigned_at = ?,
+         sla_due_at = ?
+     WHERE id = ?`,
+    officer.id,
+    now,
+    now,
+    due,
+    id,
+  );
 
-      addEvent(id, {
-        type: 'assignment',
-        message: `Automatically verified and assigned to ${officer.name} (${routing.departmentName}).`,
-        visibility: 'internal',
-      });
+  addEvent(id, {
+    type: 'assignment',
+    message: `Automatically verified and assigned to ${officer.name} (${routing.departmentName}).`,
+    visibility: 'internal',
+  });
 
-      changeStatus(id, 'assigned', {
-        force: true,
-        message: `AI analysis completed. Automatically assigned to ${officer.name} in ${routing.departmentName}.`,
-      });
+  changeStatus(id, 'assigned', {
+    force: true,
+    message: `AI analysis completed. Automatically assigned to ${officer.name} in ${routing.departmentName}.`,
+  });
 
-      // Notify the assigned officer.
-      if (!opts.quiet) {
-        notify(officer.id, {
-          complaintId: id,
-          kind: priority.priority === 'P1' ? 'urgent' : 'assignment',
-          title: `New complaint assigned: ${c.ref}`,
-          body: `${c.title} · ${routing.departmentName} · ${priority.priority}`,
-        });
+  if (!opts.quiet) {
+    notify(officer.id, {
+      complaintId: id,
+      kind: priority.priority === 'P1' ? 'urgent' : 'assignment',
+      title: `New complaint assigned: ${c.ref}`,
+      body: `${c.title} · ${routing.departmentName} · ${priority.priority}`,
+    });
+  }
 
-        if (officer.email) {
-          void sendEmail(
-            officer.email,
-            `New complaint assigned: ${c.ref}`,
-            [
-              `A new complaint has been assigned to you.`,
-              `Complaint: ${c.title}`,
-              `Reference: ${c.ref}`,
-              `Department: ${routing.departmentName}`,
-              `Priority: ${priority.priority}`,
-            ],
-          );
-        }
-      }
+  console.log(`[pipeline] ${c.ref} automatically assigned to ${officer.name}`);
+} else {
+  changeStatus(id, 'awaiting_verification', {
+    force: true,
+    message: 'Analysis complete, but no active officer is available in the responsible department. Admin review required.',
+  });
 
-      console.log(
-        `[pipeline] ${c.ref} automatically assigned to ${officer.name}`,
-      );
-    } else {
-      // No active officer: keep the complaint for admin review.
-      changeStatus(id, 'awaiting_verification', {
-        force: true,
-        message: 'Analysis complete, but no active officer is available in the responsible department. Admin review required.',
-      });
-
-      if (!opts.quiet) {
-        notifyRole('admin', {
-          complaintId: id,
-          kind: priority.priority === 'P1' ? 'urgent' : 'review',
-          title: `${c.ref} needs manual assignment`,
-          body: `No active officer found in ${routing.departmentName}. ${priority.priority} priority.`,
-        });
-      }
-    }
-    if (!opts.quiet) notifyRole('admin', {
+  if (!opts.quiet) {
+    notifyRole('admin', {
       complaintId: id,
       kind: priority.priority === 'P1' ? 'urgent' : 'review',
-      title: `${priority.priority === 'P1' ? 'URGENT · ' : ''}${c.ref} awaiting verification`,
-      body: `${categoryLabel(classification.category)} · ${location.district ?? 'Unknown location'} · ${priority.priority}${similarity.duplicates.length ? ` · ${similarity.duplicates.length} possible duplicate(s)` : ''}`,
+      title: `${c.ref} needs manual assignment`,
+      body: `No active officer found in ${routing.departmentName}. ${priority.priority} priority.`,
     });
-
+  }
+}
+// Notify admins whenever AI analysis is completed.
+if (!opts.quiet) notifyRole('admin', {
+  complaintId: id,
+  kind: priority.priority === 'P1' ? 'urgent' : 'review',
+  title: `${priority.priority === 'P1' ? 'URGENT · ' : ''}${c.ref} awaiting verification`,
+  body: `${categoryLabel(classification.category)} · ${location.district ?? 'Unknown location'} · ${priority.priority}${similarity.duplicates.length ? ` · ${similarity.duplicates.length} possible duplicate(s)` : ''}`,
+});
     // FR23 — high priority complaints escalate immediately.
     if (priority.priority === 'P1' && getSettings().auto_escalate_p1 && !opts.rerun && !opts.quiet) {
       escalate(id, 'Marked high priority (P1) by triage — fast-tracked');

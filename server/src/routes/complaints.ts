@@ -7,23 +7,13 @@ import { config } from '../config.js';
 import { all, get, run, tx, nowIso, json, audit } from '../db.js';
 import { requireAuth, requireRole, type AuthUser } from '../auth.js';
 import { parse, h, z, idParam } from '../validate.js';
-import {
-  addEvent,
-  changeStatus,
-  escalate,
-  HttpError,
-  makeRef,
-  STATUS_LABEL,
-  OPEN_STATUSES,
-  type Status,
-} from '../services.js';
+import { addEvent, changeStatus, escalate, HttpError, makeRef, STATUS_LABEL, OPEN_STATUSES, type Status } from '../services.js';
 import { publishComplaint, notify, notifyRole } from '../events.js';
 import { analyzeComplaint, isAnalyzing, type Analysis } from '../ai/pipeline.js';
 import { forgetEmbedding } from '../ai/similarity.js';
 import { scheduleRetrain } from '../ai/classifier.js';
 import { CATEGORIES, categoryByKey, categoryLabel, domainLabel, districtNames, DISTRICTS } from '../ai/taxonomy.js';
 import { getSettings, slaHoursFor } from '../settings.js';
-import { sendEmail } from '../notifications.js';
 
 export const complaintsRouter = Router();
 complaintsRouter.use(requireAuth);
@@ -113,8 +103,9 @@ function detail(r: Row, u: AuthUser) {
   }));
   const attachments = all('SELECT id, filename, mime, size, created_at AS createdAt FROM attachments WHERE complaint_id = ? ORDER BY id', r.id);
   const assignedOfficer = r.department_id ? get<{ id: number; name: string; email: string; phone: string }>(
-    "SELECT id, name, email, phone FROM users WHERE role = 'officer' AND status = 'active' AND department_id = ? ORDER BY id LIMIT 1", r.department_id,
-  ) : null;
+  "SELECT id, name, email, phone FROM users WHERE role = 'officer' AND status = 'active' AND department_id = ? ORDER BY id LIMIT 1",
+  r.department_id,
+) : null;
   const fb = get<{ rating: number; satisfied: number; comment: string; created_at: string }>('SELECT rating, satisfied, comment, created_at FROM feedback WHERE complaint_id = ? ORDER BY id DESC LIMIT 1', r.id);
   const feedbackForCurrentResolution = !!(fb && r.resolved_at && Date.parse(fb.created_at) >= Date.parse(r.resolved_at));
   const duplicateOf = r.duplicate_of ? get<{ id: number; ref: string; status: string }>('SELECT id, ref, status FROM complaints WHERE id = ?', r.duplicate_of) : null;
@@ -269,15 +260,7 @@ complaintsRouter.post('/', requireRole('citizen'), upload.array('files', config.
       return lastId;
     });
     const row = load(id, req.user!);
-    const confirmation = `Complaint ${row.ref} has been received and is being analysed. Filed by ${row.citizen_name} (${row.citizen_email}), phone ${row.citizen_phone || 'not provided'}. An assigned officer's details will be sent once an official verifies and assigns the case.`;
-    notify(req.user!.id, { complaintId: id, kind: 'success', title: `${row.ref} received`, body: confirmation });
-    void sendEmail(row.citizen_email ?? '', `Complaint received · ${row.ref}`, [
-      `Hello ${row.citizen_name}, your grievance has been successfully filed.`,
-      `Complaint reference: ${row.ref}`,
-      `Title: ${row.title}`,
-      `Filed by: ${row.citizen_name} · ${row.citizen_email} · ${row.citizen_phone || 'Phone not provided'}`,
-      'Current status: Submitted / under AI analysis. The assigned officer name, department, email and phone will be shared as soon as the complaint is verified and assigned.',
-    ]);
+    notify(req.user!.id, { complaintId: id, kind: 'success', title: `${row.ref} received`, body: 'We are analysing your complaint now. You can watch progress live.' });
     setImmediate(() => analyzeComplaint(id).catch((e) => console.error(e)));
     res.status(201).json({ complaint: serialize(row, req.user!) });
   } catch (e) {
@@ -345,10 +328,10 @@ complaintsRouter.post('/:id/feedback', requireRole('citizen'), h((req, res) => {
   if (row.status !== 'resolved') throw new HttpError(409, 'Feedback can be given once the complaint is resolved.');
   if (get('SELECT 1 FROM feedback WHERE complaint_id = ? AND created_at >= ?', row.id, row.resolved_at ?? '')) throw new HttpError(409, 'You have already given feedback on this resolution.');
   const s = getSettings();
-  const withinWindow = !!row.resolved_at && Date.now() < Date.parse(row.resolved_at) + s.reopen_window_days * 86_400_000;
-  if (body.reopen && (body.satisfied || row.reopen_count >= 1 || !withinWindow)) {
-    throw new HttpError(409, 'This complaint can no longer be reopened. Your feedback was not submitted; contact the grievance cell if the issue remains unresolved.');
-  }
+  const withinWindow = row.resolved_at && Date.now() < Date.parse(row.resolved_at) + s.reopen_window_days * 86_400_000;
+if (body.reopen && (body.satisfied || row.reopen_count >= 1 || !withinWindow)) {
+  throw new HttpError(409, 'This complaint can no longer be reopened. Your feedback was not submitted; contact the grievance cell if the issue remains unresolved.');
+}
 
   tx(() => {
     run('INSERT INTO feedback (complaint_id, user_id, rating, satisfied, comment) VALUES (?,?,?,?,?)', row.id, req.user!.id, body.rating, body.satisfied ? 1 : 0, body.comment);
@@ -438,19 +421,27 @@ complaintsRouter.post('/:id/verify', requireRole('admin'), h((req, res) => {
   scheduleRetrain(req.user!.id);
 
   const officer = get<{ name: string; email: string; phone: string }>(
-    "SELECT name, email, phone FROM users WHERE role = 'officer' AND status = 'active' AND department_id = ? ORDER BY id LIMIT 1", dept.id,
-  );
-  const msg = `${body.citizenMessage || ai?.recommendation.citizenMessage || `Your complaint has been assigned to the ${dept.name}.`} ${officer ? `Assigned officer: ${officer.name}; ${officer.email}; ${officer.phone || 'phone not listed'}.` : 'The department will share officer contact details shortly.'}`;
-  notify(row.user_id, { complaintId: row.id, kind: 'progress', title: `${row.ref} assigned to ${dept.code}`, body: msg });
-  void sendEmail(row.citizen_email ?? '', `Officer assigned · ${row.ref}`, [
-    `Your complaint ${row.ref} has been verified and assigned.`,
-    `Complaint: ${row.title}`,
-    `Department: ${dept.name}`,
-    `Assigned officer: ${officer?.name ?? 'Officer details pending'}`,
-    `Officer email: ${officer?.email ?? 'Will be shared shortly'}`,
-    `Officer phone: ${officer?.phone ?? 'Will be shared shortly'}`,
-    `Current status: Assigned · priority ${body.priority}`,
-  ]);
+  "SELECT name, email, phone FROM users WHERE role = 'officer' AND status = 'active' AND department_id = ? ORDER BY id LIMIT 1",
+  dept.id,
+);
+
+const baseMessage =
+  body.citizenMessage ||
+  ai?.recommendation.citizenMessage ||
+  `Your complaint has been assigned to the ${dept.name}.`;
+
+const officerMessage = officer
+  ? `Assigned officer: ${officer.name}; Email: ${officer.email}; Phone: ${officer.phone || 'phone not listed'}.`
+  : 'The department will share officer contact details shortly.';
+
+const msg = `${baseMessage} ${officerMessage}`;
+
+notify(row.user_id, {
+  complaintId: row.id,
+  kind: 'progress',
+  title: `${row.ref} assigned to ${dept.code}`,
+  body: msg,
+});
   notifyRole('officer', { complaintId: row.id, kind: body.priority === 'P1' ? 'urgent' : 'assignment', title: `New ${body.priority} assignment · ${row.ref}`, body: `${categoryLabel(body.category)} · ${body.district || 'Location n/a'}` }, dept.id);
   if (body.priority === 'P1' && row.escalation_level === 0 && getSettings().auto_escalate_p1) escalate(row.id, 'Confirmed high priority (P1) at verification', req.user!.id);
   res.json({ complaint: detail(load(row.id, req.user!), req.user!), corrections: changed });
@@ -537,7 +528,7 @@ complaintsRouter.post('/:id/status', requireRole('officer', 'admin'), h((req, re
     set,
   });
   const titles: Record<string, string> = { in_progress: 'Work started', on_hold: 'Put on hold', resolved: 'Marked resolved — please rate the outcome' };
- notify(row.user_id, { complaintId: row.id, kind: body.status === 'resolved' ? 'success' : 'progress', title: `${row.ref} · ${titles[body.status]}`, body: body.status === 'resolved' ? body.resolutionNote.slice(0, 160) : body.message.slice(0, 160) });
+  notify(r.ownerId, { complaintId: row.id, kind: body.status === 'resolved' ? 'success' : 'progress', title: `${row.ref} · ${titles[body.status]}`, body: body.status === 'resolved' ? body.resolutionNote.slice(0, 160) : body.message.slice(0, 160) });
   res.json({ complaint: detail(load(row.id, req.user!), req.user!) });
 }));
 

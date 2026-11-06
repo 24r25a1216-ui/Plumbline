@@ -4,8 +4,12 @@ data/
 uploads/
 .env
 *.log
-
-CREDENTIALS.txt
 *.db
 *.sqlite
 *.sqlite3
+
+# Secrets and local credentials
+.env.*
+!.env.example
+CREDENTIALS.txt
+.env (2).example
