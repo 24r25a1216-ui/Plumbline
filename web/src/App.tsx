@@ -16,6 +16,7 @@ const CaseFile = lazy(() => import('./pages/admin/CaseFile'));
 const Insights = lazy(() => import('./pages/admin/Insights'));
 const Users = lazy(() => import('./pages/admin/Users'));
 const Departments = lazy(() => import('./pages/admin/Departments'));
+const Authorities = lazy(() => import('./pages/admin/Authorities'));
 const Settings = lazy(() => import('./pages/admin/Settings'));
 const Audit = lazy(() => import('./pages/admin/Audit'));
 
@@ -44,6 +45,7 @@ export function App() {
           <Route path="insights" element={<Insights />} />
           <Route path="users" element={<Users />} />
           <Route path="departments" element={<Departments />} />
+          <Route path="authorities" element={<Authorities />} />
           <Route path="settings" element={<Settings />} />
           <Route path="audit" element={<Audit />} />
           <Route path="account" element={<Account />} />

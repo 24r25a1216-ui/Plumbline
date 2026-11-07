@@ -30,7 +30,7 @@ adminRouter.get('/overview', requireRole('admin', 'officer'), (req, res) => {
     analyzing: n("status IN ('submitted','analyzing')"),
     inProgress: n(`status IN (${inList(ACTIVE_WORK)})`),
     resolved: n("status IN ('resolved','closed')"),
-    escalated: n(`escalation_level > 0 AND status IN (${inList(OPEN_STATUSES)})`),
+    escalated: n(`escalation_level > 1 AND status IN (${inList(OPEN_STATUSES)})`),
     overdue: n(`sla_due_at < ? AND status IN (${inList(ACTIVE_WORK)})`, now),
     p1Open: n(`priority = 'P1' AND status IN (${inList(OPEN_STATUSES)})`),
     last7: n("created_at >= datetime('now','-7 days')"),
@@ -269,6 +269,75 @@ adminRouter.patch('/departments/:id', requireRole('admin'), h((req, res) => {
   audit(req.user!.id, 'department.update', d.code, body);
   res.json({ ok: true });
 }));
+
+
+/* ── Public authority email directory ───────────────────────── */
+
+adminRouter.get('/authorities', requireRole('admin'), (_req, res) => {
+  res.json({ items: all(
+    `SELECT a.*, a.department_id AS departmentId, a.authority_name AS authorityName,
+            a.source_url AS sourceUrl, d.code AS departmentCode, d.name AS departmentName
+       FROM department_authorities a JOIN departments d ON d.id = a.department_id
+      ORDER BY d.name, a.district, a.level`,
+  ) });
+});
+
+const authoritySchema = z.object({
+  departmentId: z.number().int().positive(),
+  district: z.string().trim().max(100).default(''),
+  institution: z.string().trim().max(160).default(''),
+  level: z.number().int().min(1).max(50),
+  designation: z.string().trim().min(2).max(120),
+  authorityName: z.string().trim().max(120).default(''),
+  email: z.string().trim().email().max(254),
+  sourceUrl: z.string().trim().url().max(500),
+  verified: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+adminRouter.post('/authorities', requireRole('admin'), h((req, res) => {
+  const body = parse(authoritySchema, req.body);
+  if (!get('SELECT 1 FROM departments WHERE id = ? AND active = 1', body.departmentId)) throw new HttpError(422, 'Choose an active department.');
+  if (body.verified && !/^https:\/\//i.test(body.sourceUrl)) throw new HttpError(422, 'A public HTTPS source is required before verification.');
+  try {
+    const r = run('INSERT INTO department_authorities (department_id, district, institution, level, designation, authority_name, email, source_url, verified, active) VALUES (?,?,?,?,?,?,?,?,?,?)', body.departmentId, body.district, body.institution, body.level, body.designation, body.authorityName, body.email, body.sourceUrl, body.verified, body.active);
+    audit(req.user!.id, 'authority.create', `authority:${r.lastId}`, { departmentId: body.departmentId, district: body.district, institution: body.institution, level: body.level, email: body.email, verified: body.verified });
+    res.status(201).json({ id: r.lastId });
+  } catch (error: any) {
+    if (String(error?.message ?? '').includes('UNIQUE')) throw new HttpError(409, 'An authority already exists for this department, district, institution and level.');
+    throw error;
+  }
+}));
+
+adminRouter.patch('/authorities/:id', requireRole('admin'), h((req, res) => {
+  const id = idParam(req);
+  const body = parse(authoritySchema.partial(), req.body);
+  const current = get<any>('SELECT * FROM department_authorities WHERE id = ?', id);
+  if (!current) throw new HttpError(404, 'Authority not found.');
+  const next = { departmentId: body.departmentId ?? current.department_id, district: body.district ?? current.district, institution: body.institution ?? current.institution, level: body.level ?? current.level, designation: body.designation ?? current.designation, authorityName: body.authorityName ?? current.authority_name, email: body.email ?? current.email, sourceUrl: body.sourceUrl ?? current.source_url, verified: body.verified ?? !!current.verified, active: body.active ?? !!current.active };
+  if (next.verified && !/^https:\/\//i.test(next.sourceUrl)) throw new HttpError(422, 'A public HTTPS source is required before verification.');
+  try {
+    run('UPDATE department_authorities SET department_id=?, district=?, institution=?, level=?, designation=?, authority_name=?, email=?, source_url=?, verified=?, active=? WHERE id=?', next.departmentId, next.district, next.institution, next.level, next.designation, next.authorityName, next.email, next.sourceUrl, next.verified, next.active, id);
+    audit(req.user!.id, 'authority.update', `authority:${id}`, { ...next, email: next.email });
+    res.json({ ok: true });
+  } catch (error: any) {
+    if (String(error?.message ?? '').includes('UNIQUE')) throw new HttpError(409, 'An authority already exists for this department, district, institution and level.');
+    throw error;
+  }
+}));
+
+adminRouter.delete('/authorities/:id', requireRole('admin'), (req, res) => {
+  const id = idParam(req);
+  const current = get<any>('SELECT id, email FROM department_authorities WHERE id = ?', id);
+  if (!current) throw new HttpError(404, 'Authority not found.');
+  run('UPDATE department_authorities SET active = 0 WHERE id = ?', id);
+  audit(req.user!.id, 'authority.deactivate', `authority:${id}`, { email: current.email });
+  res.json({ ok: true });
+});
+
+adminRouter.get('/email-deliveries', requireRole('admin'), (_req, res) => {
+  res.json({ items: all('SELECT id, complaint_id AS complaintId, recipient, recipient_type AS recipientType, subject, status, provider_id AS providerId, error, created_at AS createdAt FROM email_delivery_log ORDER BY id DESC LIMIT 200') });
+});
 
 /* ── Settings ───────────────────────────────────────────────── */
 

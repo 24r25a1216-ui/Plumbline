@@ -43,7 +43,7 @@ export default function CaseFile() {
         <div className="row wrap gap-10">
           <span className="ref">{c.ref}</span>
           <StatusChip status={c.status} live={c.analyzing} />
-          {c.escalationLevel > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }} title={c.escalationReason ?? ''}><Icon name="alert" size={11} /> Escalated · L{c.escalationLevel}</span>}
+          {c.escalationLevel > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }} title={c.escalationReason ?? ''}><Icon name="route" size={11} /> Authority level · L{c.escalationLevel}</span>}
           <Sla due={c.slaDueAt} status={c.status} />
           {ai && <span className="tag" style={{ color: ai.engine !== 'local' ? 'var(--lichen)' : undefined }}><Icon name="cpu" /> {ai.engine === 'openai' ? 'OpenAI' : ai.engine === 'hybrid' ? 'Hybrid' : 'Local NLP'} · {(ai.totalMs / 1000).toFixed(1)}s</span>}
           <span className="grow" />
@@ -57,6 +57,7 @@ export default function CaseFile() {
               {c.domain && <DomainTag domain={c.domain} label={`${c.domainLabel} · ${c.categoryLabel}`} />}
               {(c.locationText || c.district) && <span className="row gap-6"><Icon name="pin" size={13} />{[c.locationText, c.district].filter(Boolean).join(', ')}</span>}
               {c.department && <span className="row gap-6"><Icon name="building" size={13} />{c.department.name}</span>}
+              {c.institution && <span className="row gap-6"><Icon name="landmark" size={13} />{c.institution}</span>}
             </div>
           </div>
           <div className="row gap-20">
@@ -681,6 +682,7 @@ function FactsPanel({ c }: { c: ComplaintDetail }) {
         <dl className="kv">
           <dt>Department</dt><dd>{c.department ? `${c.department.code} · ${c.department.name}` : <span className="dim">Not assigned</span>}</dd>
           <dt>Verified</dt><dd>{c.verifiedAt ? dateTime(c.verifiedAt) : <span className="dim">Pending</span>}</dd>
+          {c.currentAuthority && <><dt>Current authority</dt><dd>{c.currentAuthority.name || c.currentAuthority.designation}{c.currentAuthority.name ? ` · ${c.currentAuthority.designation}` : ''}{c.currentAuthority.email ? <div className="xs muted">{c.currentAuthority.email}</div> : null}</dd></>}
           {c.slaDueAt && <><dt>Deadline</dt><dd>{dateTime(c.slaDueAt)}</dd></>}
           {c.resolvedAt && <><dt>Resolved</dt><dd>{dateTime(c.resolvedAt)}</dd></>}
           {c.escalationReason && <><dt>Escalation</dt><dd className="small" style={{ color: 'var(--oxide)' }}>{c.escalationReason}</dd></>}

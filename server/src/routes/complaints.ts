@@ -14,6 +14,7 @@ import { forgetEmbedding } from '../ai/similarity.js';
 import { scheduleRetrain } from '../ai/classifier.js';
 import { CATEGORIES, categoryByKey, categoryLabel, domainLabel, districtNames, DISTRICTS } from '../ai/taxonomy.js';
 import { getSettings, slaHoursFor } from '../settings.js';
+import { startAuthorityRouting } from '../authority-routing.js';
 
 export const complaintsRouter = Router();
 complaintsRouter.use(requireAuth);
@@ -43,19 +44,20 @@ function saveAttachments(complaintId: number, files: Express.Multer.File[] | und
 
 interface Row {
   id: number; ref: string; user_id: number; title: string; body_original: string; language: string | null; body_english: string | null; translation_method: string | null;
-  location_input: string; district_input: string; pincode: string; incident_date: string | null; domain: string | null; category: string | null; confidence: number | null;
+  location_input: string; district_input: string; institution_input: string; pincode: string; incident_date: string | null; domain: string | null; category: string | null; confidence: number | null;
   severity: number | null; priority: string | null; location_text: string | null; district: string | null; department_id: number | null; status: Status; ai_engine: string | null;
   ai_json: string | null; ai_error: string | null; duplicate_of: number | null; duplicate_score: number | null; escalation_level: number; escalated_at: string | null;
   escalation_reason: string | null; sla_due_at: string | null; resolution_note: string | null; reopen_count: number; verified_by: number | null; verified_at: string | null;
   assigned_at: string | null; resolved_at: string | null; closed_at: string | null; created_at: string; updated_at: string;
-  dept_code?: string; dept_name?: string; citizen_name?: string; citizen_email?: string; citizen_phone?: string; attachment_count?: number;
+  dept_code?: string; dept_name?: string; authority_designation?: string; authority_name?: string; authority_email?: string; citizen_name?: string; citizen_email?: string; citizen_phone?: string; attachment_count?: number;
 }
 
 const BASE_SELECT = `
-  SELECT c.*, d.code AS dept_code, d.name AS dept_name, u.name AS citizen_name, u.email AS citizen_email, u.phone AS citizen_phone,
+  SELECT c.*, d.code AS dept_code, d.name AS dept_name, ca.designation AS authority_designation, ca.authority_name, ca.email AS authority_email, u.name AS citizen_name, u.email AS citizen_email, u.phone AS citizen_phone,
          (SELECT COUNT(*) FROM attachments a WHERE a.complaint_id = c.id) AS attachment_count
     FROM complaints c
     LEFT JOIN departments d ON d.id = c.department_id
+    LEFT JOIN department_authorities ca ON ca.id = c.current_authority_id
     JOIN users u ON u.id = c.user_id`;
 
 function canView(row: Row, u: AuthUser) {
@@ -79,9 +81,10 @@ function serialize(r: Row, u: AuthUser) {
     id: r.id, ref: r.ref, title: r.title, status: r.status, statusLabel: STATUS_LABEL[r.status],
     domain: r.domain, domainLabel: domainLabel(r.domain), category: r.category, categoryLabel: categoryLabel(r.category),
     severity: r.severity, priority: r.priority, confidence: staff ? r.confidence : undefined,
-    district: r.district, locationText: r.location_text || r.location_input || null, language: r.language,
+    district: r.district, institution: r.institution_input, locationText: r.location_text || r.location_input || null, language: r.language,
     department: r.department_id && (staff || r.verified_at) ? { id: r.department_id, code: r.dept_code, name: r.dept_name } : null,
     escalationLevel: r.escalation_level, escalatedAt: r.escalated_at, escalationReason: r.escalation_reason,
+    currentAuthority: r.authority_designation ? { designation: r.authority_designation, name: r.authority_name, email: staff ? r.authority_email : undefined } : null,
     slaDueAt: r.sla_due_at, overdue, assignedAt: r.assigned_at, resolvedAt: r.resolved_at, closedAt: r.closed_at,
     verifiedAt: r.verified_at, createdAt: r.created_at, updatedAt: r.updated_at, attachmentCount: r.attachment_count ?? 0,
     duplicateScore: staff ? r.duplicate_score : undefined, aiEngine: staff ? r.ai_engine : undefined,
@@ -123,7 +126,7 @@ function detail(r: Row, u: AuthUser) {
     canUpdateStatus: staff && ['assigned', 'in_progress', 'on_hold', 'reopened'].includes(r.status),
     canReturn: u.role === 'officer' && ['assigned', 'in_progress', 'on_hold'].includes(r.status),
     canReassign: u.role === 'admin' && ['assigned', 'in_progress', 'on_hold', 'reopened'].includes(r.status),
-    canEscalate: u.role === 'admin' && ['awaiting_verification', 'assigned', 'in_progress', 'on_hold', 'reopened'].includes(r.status) && r.escalation_level < 3,
+    canEscalate: u.role === 'admin' && r.escalation_level >= 1 && ['assigned', 'in_progress', 'on_hold', 'reopened'].includes(r.status),
   };
 
   const corrections = staff
@@ -183,7 +186,7 @@ function listWhere(u: AuthUser, q: Record<string, string | undefined>) {
   multi('c.priority', q.priority);
   multi('c.district', q.district);
   if (q.department) { where.push('c.department_id = ?'); params.push(Number(q.department)); }
-  if (q.escalated === '1') where.push('c.escalation_level > 0');
+  if (q.escalated === '1') where.push('c.escalation_level > 1');
   if (q.overdue === '1') where.push(`c.sla_due_at IS NOT NULL AND c.sla_due_at < ? AND c.status IN ('assigned','in_progress','on_hold','reopened')`), params.push(nowIso());
   if (q.q?.trim()) {
     const term = `%${q.q.trim().toLowerCase()}%`;
@@ -240,6 +243,7 @@ complaintsRouter.post('/', requireRole('citizen'), upload.array('files', config.
         body: z.string().trim().min(30, 'Describe the issue in a little more detail (at least 30 characters).').max(5000, 'Please keep the description under 5000 characters.'),
         locationInput: z.string().trim().max(160).default(''),
         districtInput: z.string().trim().refine((v) => !v || districtNames.includes(v), 'Choose a district from the list.').default(''),
+        institutionInput: z.string().trim().max(160).default(''),
         pincode: z.string().trim().regex(/^([1-8]\d{5})?$/, 'Enter a valid 6-digit PIN code.').default(''),
         incidentDate: z.string().trim().refine((v) => !v || (!Number.isNaN(Date.parse(v)) && Date.parse(v) <= Date.now() + 86_400_000), 'Incident date cannot be in the future.').default(''),
         consent: z.union([z.literal('true'), z.literal(true)], { errorMap: () => ({ message: 'Please confirm the information is accurate.' }) }),
@@ -251,8 +255,8 @@ complaintsRouter.post('/', requireRole('citizen'), upload.array('files', config.
 
     const id = tx(() => {
       const { lastId } = run(
-        'INSERT INTO complaints (user_id, title, body_original, location_input, district_input, pincode, incident_date) VALUES (?,?,?,?,?,?,?)',
-        req.user!.id, body.title, body.body, body.locationInput, body.districtInput, body.pincode, body.incidentDate || null,
+        'INSERT INTO complaints (user_id, title, body_original, location_input, district_input, institution_input, pincode, incident_date) VALUES (?,?,?,?,?,?,?,?)',
+        req.user!.id, body.title, body.body, body.locationInput, body.districtInput, body.institutionInput, body.pincode, body.incidentDate || null,
       );
       run('UPDATE complaints SET ref = ? WHERE id = ?', makeRef(lastId), lastId);
       saveAttachments(lastId, files, req.user!.id);
@@ -443,7 +447,7 @@ notify(row.user_id, {
   body: msg,
 });
   notifyRole('officer', { complaintId: row.id, kind: body.priority === 'P1' ? 'urgent' : 'assignment', title: `New ${body.priority} assignment · ${row.ref}`, body: `${categoryLabel(body.category)} · ${body.district || 'Location n/a'}` }, dept.id);
-  if (body.priority === 'P1' && row.escalation_level === 0 && getSettings().auto_escalate_p1) escalate(row.id, 'Confirmed high priority (P1) at verification', req.user!.id);
+  void startAuthorityRouting(row.id).catch((error) => console.error('[authority] initial email failed:', error));
   res.json({ complaint: detail(load(row.id, req.user!), req.user!), corrections: changed });
 }));
 
@@ -487,7 +491,7 @@ complaintsRouter.post('/:id/reject', requireRole('admin'), h((req, res) => {
 complaintsRouter.post('/:id/escalate', requireRole('admin'), h((req, res) => {
   const row = load(idParam(req), req.user!);
   const body = parse(z.object({ reason: z.string().trim().min(5, 'Give a reason.').max(300) }), req.body);
-  if (row.escalation_level >= 3) throw new HttpError(409, 'Already at the highest escalation level.');
+  if (row.escalation_level < 1) throw new HttpError(409, 'The complaint must first be emailed to its level 1 authority.');
   escalate(row.id, `Manual: ${body.reason}`, req.user!.id);
   res.json({ complaint: detail(load(row.id, req.user!), req.user!) });
 }));
@@ -500,9 +504,10 @@ complaintsRouter.post('/:id/reassign', requireRole('admin'), h((req, res) => {
   if (dept.id === row.department_id) throw new HttpError(422, 'The complaint is already with this department.');
   const prev = row.dept_code;
   run('INSERT INTO corrections (complaint_id, field, ai_value, final_value, source, note, actor_id) VALUES (?,?,?,?,?,?,?)', row.id, 'department', prev ?? null, dept.code, 'reassignment', body.note, req.user!.id);
-  run('UPDATE complaints SET department_id = ?, assigned_at = ?, updated_at = ? WHERE id = ?', dept.id, nowIso(), nowIso(), row.id);
+  run('UPDATE complaints SET department_id = ?, current_authority_id = NULL, escalation_level = 1, assigned_at = ?, sla_due_at = ?, updated_at = ? WHERE id = ?', dept.id, nowIso(), new Date(Date.now() + 3 * 86_400_000).toISOString(), nowIso(), row.id);
   addEvent(row.id, { type: 'assignment', message: `Transferred from ${prev} to ${dept.name}.${body.note ? ` ${body.note}` : ''}`, actorId: req.user!.id });
   notifyRole('officer', { complaintId: row.id, kind: 'assignment', title: `Transferred to you · ${row.ref}`, body: categoryLabel(row.category) }, dept.id);
+  void startAuthorityRouting(row.id).catch((error) => console.error('[authority] reassignment email failed:', error));
   publishComplaint(row.id, 'complaint.updated');
   res.json({ complaint: detail(load(row.id, req.user!), req.user!) });
 }));

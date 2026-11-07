@@ -10,8 +10,8 @@ import { Icon } from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 
 const DRAFT_KEY = 'plb-draft-v1';
-interface Draft { title: string; body: string; locationInput: string; districtInput: string; pincode: string; incidentDate: string }
-const EMPTY: Draft = { title: '', body: '', locationInput: '', districtInput: '', pincode: '', incidentDate: '' };
+interface Draft { title: string; body: string; locationInput: string; districtInput: string; institutionInput: string; pincode: string; incidentDate: string }
+const EMPTY: Draft = { title: '', body: '', locationInput: '', districtInput: '', institutionInput: '', pincode: '', incidentDate: '' };
 
 function loadDraft(): Draft {
   try {
@@ -133,6 +133,9 @@ export default function NewComplaint() {
           <section className="sheet reg">
             <SheetHead fig="02" title="Where & when" />
             <div className="sheet-body grid g-2" style={{ gap: 16 }}>
+              <Field label="Institution / college / hospital / office" optional hint="Enter the exact institution name if the complaint concerns a specific place.">
+                <input className="input" value={d.institutionInput} onChange={set('institutionInput')} placeholder="e.g. Government Degree College, Secunderabad" maxLength={160} />
+              </Field>
               <Field label="Locality / landmark" optional>
                 <input className="input" value={d.locationInput} onChange={set('locationInput')} placeholder="e.g. KPHB Colony Phase 3" maxLength={160} />
               </Field>

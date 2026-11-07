@@ -37,7 +37,7 @@ export default function CitizenCase() {
         <div className="row wrap gap-10">
           <span className="ref">{c.ref}</span>
           <StatusChip status={c.status} live={c.analyzing} />
-          {c.escalationLevel > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }}><Icon name="alert" size={11} /> Escalated · L{c.escalationLevel}</span>}
+          {c.escalationLevel > 1 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }}><Icon name="alert" size={11} /> Escalated · L{c.escalationLevel}</span>}
           <Sla due={c.slaDueAt} status={c.status} />
           <span className="grow" />
           <span className="xs muted">Filed {dateTime(c.createdAt)}</span>

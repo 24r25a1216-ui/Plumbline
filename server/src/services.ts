@@ -1,5 +1,6 @@
 import { get, run, nowIso } from './db.js';
 import { publishComplaint, notify, notifyRole } from './events.js';
+import { emailAuthorityForComplaint } from './authority-routing.js';
 
 export const STATUSES = [
   'submitted', 'analyzing', 'awaiting_verification', 'assigned', 'in_progress', 'on_hold',
@@ -66,20 +67,35 @@ export function changeStatus(
   return { from: c.status, to, ownerId: c.user_id, ref: c.ref, title: c.title };
 }
 
-/** FR23 — escalation, used by the scheduler and by P1 auto-escalation. */
+/** FR23 — automatic hierarchical escalation to the next verified public authority. */
 export function escalate(id: number, reason: string, actorId: number | null = null) {
-  const c = get<{ escalation_level: number; user_id: number; ref: string; department_id: number | null; title: string }>(
-    'SELECT escalation_level, user_id, ref, department_id, title FROM complaints WHERE id = ?', id,
+  const c = get<{ escalation_level: number; user_id: number; ref: string; department_id: number | null; district: string | null; title: string }>(
+    'SELECT escalation_level, user_id, ref, department_id, district, title FROM complaints WHERE id = ?', id,
   );
   if (!c) return;
-  const level = Math.min(3, c.escalation_level + 1);
-  run('UPDATE complaints SET escalation_level = ?, escalated_at = ?, escalation_reason = ?, updated_at = ? WHERE id = ?', level, nowIso(), reason, nowIso(), id);
-  addEvent(id, { type: 'escalation', message: `Escalated to level ${level}: ${reason}`, actorId, visibility: 'public', meta: { level, reason } });
-  const tier = level === 1 ? 'Department head' : level === 2 ? 'Directorate' : 'Grievance Commissioner';
-  notifyRole('admin', { complaintId: id, kind: 'escalation', title: `${c.ref} escalated · L${level}`, body: `${reason} — now with ${tier}.` });
-  if (c.department_id) notifyRole('officer', { complaintId: id, kind: 'escalation', title: `${c.ref} escalated · L${level}`, body: reason }, c.department_id);
-  notify(c.user_id, { complaintId: id, kind: 'escalation', title: `Your complaint ${c.ref} was escalated`, body: `It is now being followed up by the ${tier}.` });
-  publishComplaint(id, 'complaint.updated', { escalated: level });
+  const nextLevel = Math.max(1, c.escalation_level) + 1;
+  if (!c.department_id) {
+    notifyRole('admin', { complaintId: id, kind: 'warning', title: `${c.ref} cannot be escalated`, body: 'No department is assigned. Admin review is required.' });
+    return;
+  }
+  // Temporarily claim this overdue stage so overlapping scheduler ticks cannot send duplicates.
+  run('UPDATE complaints SET sla_due_at = ?, updated_at = ? WHERE id = ?', new Date(Date.now() + 10 * 60_000).toISOString(), nowIso(), id);
+  // Do not silently skip a missing level or invent an email address.
+  void emailAuthorityForComplaint(id, nextLevel, reason).then((sentToAuthority) => {
+    if (!sentToAuthority) {
+      const retryAt = new Date(Date.now() + 86_400_000).toISOString();
+      run('UPDATE complaints SET sla_due_at = ?, updated_at = ? WHERE id = ?', retryAt, nowIso(), id);
+      addEvent(id, { type: 'routing_blocked', message: `Automatic escalation to level ${nextLevel} is waiting for a verified public authority email address.`, actorId, visibility: 'internal', meta: { requestedLevel: nextLevel } });
+      notifyRole('admin', { complaintId: id, kind: 'warning', title: `${c.ref} needs an authority email`, body: `Add and verify the official public email for escalation level ${nextLevel}, and check Resend delivery configuration. Automatic forwarding is paused until then.` });
+      notify(c.user_id, { complaintId: id, kind: 'warning', title: `Update on complaint ${c.ref}`, body: 'The next authority email is not yet verified. Plumbline has alerted the administrator to complete the routing details.' });
+      return;
+    }
+    run('UPDATE complaints SET escalated_at = ?, escalation_reason = ?, updated_at = ? WHERE id = ?', nowIso(), reason, nowIso(), id);
+    addEvent(id, { type: 'escalation', message: `Automatically escalated to authority level ${nextLevel}: ${reason}`, actorId, visibility: 'public', meta: { level: nextLevel, reason } });
+    notifyRole('admin', { complaintId: id, kind: 'escalation', title: `${c.ref} escalated · L${nextLevel}`, body: reason });
+    notify(c.user_id, { complaintId: id, kind: 'escalation', title: `Your complaint ${c.ref} was escalated`, body: `It has been forwarded to the next higher authority (level ${nextLevel}).` });
+    publishComplaint(id, 'complaint.updated', { escalated: nextLevel });
+  }).catch((error) => console.error(`[escalation] ${c.ref} forwarding failed:`, error));
 }
 
 export class HttpError extends Error {

@@ -6,7 +6,7 @@
 import { get, run, nowIso } from '../db.js';
 import { aiActive, getSettings, slaHoursFor } from '../settings.js';
 import { publishComplaint, notify, notifyRole } from '../events.js';
-import { addEvent, changeStatus, escalate } from '../services.js';
+import { addEvent, changeStatus } from '../services.js';
 import { detectLanguage, glossaryTranslate, LANG_LABEL, type LanguageResult, type Lang } from './language.js';
 import { preprocess, type Preprocessed } from './preprocess.js';
 import { classifyLocal, type LocalClassification } from './classifier.js';
@@ -14,6 +14,7 @@ import { contextSignals, localSeverity, computePriority, locate, type ContextSig
 import { findSimilar, type SimilarityResult } from './similarity.js';
 import { llmTranslate, llmAnalyze, llmRecommend, type LLMAnalysis } from './llm.js';
 import { categoryByKey, categoryLabel, DISTRICTS, SEVERITY_LABELS, type DomainKey } from './taxonomy.js';
+import { startAuthorityRouting } from '../authority-routing.js';
 
 export type Engine = 'openai' | 'local' | 'rules';
 
@@ -364,6 +365,7 @@ if (officer) {
     });
   }
 
+  if (!opts.quiet) void startAuthorityRouting(id).catch((error) => console.error('[authority] initial email failed:', error));
   console.log(`[pipeline] ${c.ref} automatically assigned to ${officer.name}`);
 } else {
   changeStatus(id, 'awaiting_verification', {
@@ -387,10 +389,7 @@ if (!opts.quiet) notifyRole('admin', {
   title: `${priority.priority === 'P1' ? 'URGENT · ' : ''}${c.ref} awaiting verification`,
   body: `${categoryLabel(classification.category)} · ${location.district ?? 'Unknown location'} · ${priority.priority}${similarity.duplicates.length ? ` · ${similarity.duplicates.length} possible duplicate(s)` : ''}`,
 });
-    // FR23 — high priority complaints escalate immediately.
-    if (priority.priority === 'P1' && getSettings().auto_escalate_p1 && !opts.rerun && !opts.quiet) {
-      escalate(id, 'Marked high priority (P1) by triage — fast-tracked');
-    }
+    // Priority does not bypass the configured authority-level resolution deadlines.
     publishComplaint(id, 'analysis.done', { engine: analysis.engine });
   } catch (e: any) {
     console.error(`[pipeline] ${c.ref} failed:`, e);

@@ -10,6 +10,8 @@ const P: Record<string, JSX.Element> = {
   alert: <><path d="M10 3 2.8 16h14.4z" /><path d="M10 8v3.6M10 13.6v.4" /></>,
   spark: <><path d="M10 2.5v4M10 13.5v4M2.5 10h4M13.5 10h4" /><path d="m5 5 2 2M13 13l2 2M15 5l-2 2M7 13l-2 2" /></>,
   users: <><circle cx="7.5" cy="7" r="2.8" /><path d="M2.5 16.5c.5-3 2.4-4.5 5-4.5s4.5 1.5 5 4.5" /><path d="M13 4.6a2.6 2.6 0 0 1 0 5M14.5 12.2c1.6.5 2.6 1.9 3 4.3" /></>,
+  mail: <><rect x="2.5" y="4" width="15" height="12" rx="1" /><path d="m3 5 7 5.5L17 5" /></>,
+  landmark: <><path d="M2.5 7 10 3l7.5 4H2.5z" /><path d="M4 8v7M8 8v7M12 8v7M16 8v7M2.5 17h15" /></>,
   building: <><path d="M3.5 17V5.5L10 3l6.5 2.5V17" /><path d="M2 17h16" /><path d="M7 8v6M10 8v6M13 8v6" /></>,
   settings: <><path d="M3 6h9M15 6h2M3 14h2M8 14h9" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></>,
   log: <><path d="M4 3.5h12v13H4z" /><path d="M7 7h6M7 10h6M7 13h3" /></>,

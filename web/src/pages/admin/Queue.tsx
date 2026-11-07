@@ -63,7 +63,7 @@ export default function Queue() {
                   <div className="row wrap gap-8">
                     <span className="mono xs muted">{c.ref}</span>
                     {c.analyzing && <span className="chip live" style={{ ['--c' as string]: 'var(--lichen)' }}><span className="dot" />Analysing</span>}
-                    {c.escalationLevel > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }}><Icon name="alert" size={11} />L{c.escalationLevel}</span>}
+                    {c.escalationLevel > 1 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }}><Icon name="alert" size={11} />L{c.escalationLevel}</span>}
                     {(c.duplicateScore ?? 0) > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--clay)' }}><Icon name="merge" size={11} />Possible duplicate · {pct(c.duplicateScore)}</span>}
                     {c.language && c.language !== 'en' && <span className="tag">{LANG_LABEL[c.language]}</span>}
                   </div>

@@ -119,7 +119,7 @@ function CaseCard({ c }: { c: ComplaintSummary }) {
         <div className="row wrap gap-8">
           <span className="mono xs muted">{c.ref}</span>
           <StatusChip status={c.status} live={c.analyzing} />
-          {c.escalationLevel > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }}><Icon name="alert" size={11} /> Escalated L{c.escalationLevel}</span>}
+          {c.escalationLevel > 1 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)' }}><Icon name="alert" size={11} /> Escalated L{c.escalationLevel}</span>}
           {c.status === 'resolved' && <span className="chip" style={{ ['--c' as string]: 'var(--ochre)' }}><Icon name="star" size={11} /> Awaiting your rating</span>}
         </div>
         <h3 className={`h3 ellipsis${c.language && c.language !== 'en' ? ` lang-${c.language}` : ''}`} style={{ fontSize: 16 }}>{c.title}</h3>

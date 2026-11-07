@@ -185,7 +185,7 @@ export async function seed() {
   const demo = citizenIds[0];
   const resolvedDemo = get<{ id: number; ref: string }>("SELECT id, ref FROM complaints WHERE user_id = ? AND status = 'resolved' LIMIT 1", demo);
   if (resolvedDemo) run("INSERT INTO notifications (user_id, complaint_id, kind, title, body, created_at) VALUES (?,?,?,?,?,?)", demo, resolvedDemo.id, 'success', `${resolvedDemo.ref} · Marked resolved — please rate the outcome`, 'Trench restored with WMM and BT patch along the 300 m stretch.', iso(now - 3 * H));
-  const escDemo = get<{ id: number; ref: string }>('SELECT id, ref FROM complaints WHERE user_id = ? AND escalation_level > 0 LIMIT 1', demo);
+  const escDemo = get<{ id: number; ref: string }>('SELECT id, ref FROM complaints WHERE user_id = ? AND escalation_level > 1 LIMIT 1', demo);
   if (escDemo) run("INSERT INTO notifications (user_id, complaint_id, kind, title, body, created_at) VALUES (?,?,?,?,?,?)", demo, escDemo.id, 'escalation', `Your complaint ${escDemo.ref} was escalated`, 'It is now being followed up by the Department head.', iso(now - 2 * H));
   for (const a of all<{ id: number; ref: string; priority: string }>("SELECT id, ref, priority FROM complaints WHERE status = 'awaiting_verification' ORDER BY id DESC LIMIT 4")) {
     for (const adm of all<{ id: number }>("SELECT id FROM users WHERE role = 'admin'")) {

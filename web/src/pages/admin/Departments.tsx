@@ -15,7 +15,7 @@ export default function Departments() {
   const groups: Domain[] = ['education', 'healthcare', 'public_service'];
   return (
     <div className="col gap-20">
-      <PageHead index="ADM · 04" eyebrow="FR14 · Routing targets" title={<>Departments</>} sub="Each category in the taxonomy is owned by exactly one department. Service levels here are the department's internal target; complaint deadlines follow priority (see System settings)." />
+      <PageHead index="ADM · 04" eyebrow="FR14 · Routing targets" title={<>Departments</>} sub="Each category in the taxonomy is owned by a department. Official authority emails and escalation levels are configured under Authority emails; resolution deadlines follow the current escalation level." />
       {q.isLoading ? <div className="sheet"><SkeletonRows n={8} /></div> : q.isError ? <ErrorState error={q.error} retry={() => q.refetch()} /> : groups.map((g) => (
         <section key={g} className="col gap-12">
           <div className="divider-label"><DomainTag domain={g} /></div>
@@ -59,7 +59,7 @@ function EditDept({ d, onClose }: { d: Dept; onClose: () => void }) {
       <div className="grid g-2">
         <Field label="Name" error={errors.name}><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field label="Head of department"><input className="input" value={f.headName} onChange={(e) => setF({ ...f, headName: e.target.value })} /></Field>
-        <Field label="Contact email" error={errors.email}><input className="input" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+        <Field label="Department contact email (reference only; routing uses Authority emails)" error={errors.email}><input className="input" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         <Field label="Internal target (hours)" error={errors.slaHours}><input className="input" type="number" min={4} value={f.slaHours} onChange={(e) => setF({ ...f, slaHours: Number(e.target.value) })} /></Field>
         <div style={{ gridColumn: '1 / -1' }}><Field label="Description"><textarea className="textarea" style={{ minHeight: 70 }} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field></div>
         <div className="row gap-12" style={{ gridColumn: '1 / -1' }}>

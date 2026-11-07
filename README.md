@@ -67,3 +67,17 @@ EMAIL_FROM=Plumbline <notifications@your-verified-domain.in>
 - Feedback can be submitted once per resolution. If a complaint is reopened and later resolved again, the citizen can submit feedback on that new resolution. A reopen request outside the configured reopen window is rejected with a clear message rather than silently closing the case.
 
 After replacing the project files, run `npm run reset` once to wipe and reseed the local demo database with the expanded complaint corpus. This reset deletes existing local demo data.
+
+## Official authority email routing and escalation
+
+Plumbline routes complaints to verified public email addresses configured by an administrator under **Admin → Authority emails**. Each routing record is scoped by department, optional district, optional institution, and escalation level. Institution-specific records take priority over district-wide and department-wide records. Only active records marked verified and linked to an official HTTPS source are eligible for email forwarding; the application never guesses or invents public email addresses.
+
+Citizens can enter the exact institution / college / hospital / office name when submitting a complaint. At assignment, Plumbline emails the matching level-1 authority. If the complaint remains open past its deadline, the scheduler emails the next configured authority with the complaint details, public event history, and attachment filenames. The citizen receives in-app and email updates for submission, assignment, status changes, public remarks, escalation, resolution, and reopening.
+
+Resolution deadlines are measured from the time each authority level receives the complaint:
+
+- Levels 1–2: 3 days each.
+- Levels 3–4: 5 days each.
+- Level 5 and above: 7 days each.
+
+If the next authority email is missing, unverified, or cannot be accepted by Resend, Plumbline pauses that escalation, alerts administrators, records the email attempt, and retries later. An email logged as `accepted` means Resend accepted the request; it does not guarantee final inbox delivery. Configure `RESEND_API_KEY` and a verified `EMAIL_FROM` domain in the deployment environment for production sending.

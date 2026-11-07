@@ -135,7 +135,7 @@ export default function Registry({ preset }: { preset?: 'escalations' }) {
                         <div className={`ellipsis${c.language && c.language !== 'en' ? ` lang-${c.language}` : ''}`} style={{ fontWeight: 550 }}>{c.title}</div>
                         <div className="row gap-8 mt-4">
                           {c.domain && <DomainTag domain={c.domain} label={c.categoryLabel} />}
-                          {c.escalationLevel > 0 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)', height: 18 }}>L{c.escalationLevel}</span>}
+                          {c.escalationLevel > 1 && <span className="chip" style={{ ['--c' as string]: 'var(--oxide)', height: 18 }}>L{c.escalationLevel}</span>}
                         </div>
                       </td>
                       <td><StatusChip status={c.status} live={c.analyzing} /></td>

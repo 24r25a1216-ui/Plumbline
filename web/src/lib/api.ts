@@ -44,6 +44,7 @@ export const api = {
   post: <T>(url: string, body?: Body) => request<T>('POST', url, body ?? {}),
   put: <T>(url: string, body?: Body) => request<T>('PUT', url, body ?? {}),
   patch: <T>(url: string, body?: Body) => request<T>('PATCH', url, body ?? {}),
+  delete: <T>(url: string) => request<T>('DELETE', url),
 };
 
 export function qs(params: Record<string, string | number | boolean | undefined | null | string[]>) {

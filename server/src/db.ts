@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS complaints (
   translation_method  TEXT,
   location_input      TEXT NOT NULL DEFAULT '',
   district_input      TEXT NOT NULL DEFAULT '',
+  institution_input   TEXT NOT NULL DEFAULT '',
   pincode             TEXT NOT NULL DEFAULT '',
   incident_date       TEXT,
   domain              TEXT,
@@ -78,6 +79,35 @@ CREATE INDEX IF NOT EXISTS ix_complaints_user   ON complaints(user_id);
 CREATE INDEX IF NOT EXISTS ix_complaints_status ON complaints(status);
 CREATE INDEX IF NOT EXISTS ix_complaints_dept   ON complaints(department_id);
 CREATE INDEX IF NOT EXISTS ix_complaints_created ON complaints(created_at);
+
+CREATE TABLE IF NOT EXISTS department_authorities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+  district TEXT NOT NULL DEFAULT '',
+  institution TEXT NOT NULL DEFAULT '',
+  level INTEGER NOT NULL CHECK(level >= 1),
+  designation TEXT NOT NULL,
+  authority_name TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL,
+  source_url TEXT NOT NULL DEFAULT '',
+  verified INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(department_id, district, institution, level)
+);
+CREATE INDEX IF NOT EXISTS ix_authorities_lookup ON department_authorities(department_id, district, level, active, verified);
+
+CREATE TABLE IF NOT EXISTS email_delivery_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  complaint_id INTEGER REFERENCES complaints(id) ON DELETE SET NULL,
+  recipient TEXT NOT NULL,
+  recipient_type TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  status TEXT NOT NULL,
+  provider_id TEXT,
+  error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 
 CREATE TABLE IF NOT EXISTS complaint_events (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -218,6 +248,12 @@ const complaintColumns = db.prepare('PRAGMA table_info(complaints)').all() as { 
 if (!complaintColumns.some((column) => column.name === 'assigned_to')) {
   db.exec('ALTER TABLE complaints ADD COLUMN assigned_to INTEGER REFERENCES users(id)');
 }
+if (!complaintColumns.some((column) => column.name === 'current_authority_id')) {
+  db.exec('ALTER TABLE complaints ADD COLUMN current_authority_id INTEGER REFERENCES department_authorities(id)');
+}
+if (!complaintColumns.some((column) => column.name === 'institution_input')) {
+  db.exec("ALTER TABLE complaints ADD COLUMN institution_input TEXT NOT NULL DEFAULT ''");
+}
 export const nowIso = () => new Date().toISOString();
 export const json = <T>(s: string | null | undefined, fallback: T): T => {
   if (!s) return fallback;
@@ -237,3 +273,4 @@ export function audit(actorId: number | null, action: string, target = '', meta?
     meta === undefined ? null : JSON.stringify(meta),
   );
 }
+

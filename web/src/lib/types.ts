@@ -31,6 +31,7 @@ export interface ComplaintSummary {
   priority: Priority | null;
   confidence?: number | null;
   district: string | null;
+  institution?: string;
   locationText: string | null;
   language: 'en' | 'hi' | 'te' | null;
   department: { id: number; code: string; name: string } | null;
@@ -38,6 +39,7 @@ export interface ComplaintSummary {
   escalationLevel: number;
   escalatedAt: string | null;
   escalationReason: string | null;
+  currentAuthority?: { designation: string; name: string | null; email?: string } | null;
   slaDueAt: string | null;
   overdue: boolean;
   assignedAt: string | null;

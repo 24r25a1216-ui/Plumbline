@@ -89,6 +89,7 @@ function navFor(role: Role, c?: { status: Record<string, number>; escalated: num
     { section: 'Intelligence', items: [{ to: '/admin/insights', label: 'AI insights & learning', icon: 'spark' }] },
     { section: 'Administration', items: [
       { to: '/admin/departments', label: 'Departments', icon: 'building' },
+      { to: '/admin/authorities', label: 'Authority emails', icon: 'mail' },
       { to: '/admin/users', label: 'People & access', icon: 'users' },
       { to: '/admin/settings', label: 'System settings', icon: 'settings' },
       { to: '/admin/audit', label: 'Audit trail', icon: 'log' },
